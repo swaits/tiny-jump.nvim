@@ -116,7 +116,7 @@ function M.start()
       end)
       local L = M.config.labels
       local two = #matches > #L
-      local line_end = {}
+      local line_intervals = {}
       local li = 1
       for _, m in ipairs(matches) do
         vim.hl.range(
@@ -129,7 +129,7 @@ function M.start()
         )
         local label
         if two then
-          if li <= 2 * #L then
+          if li <= #L * #L then
             local a = math.floor((li - 1) / #L) + 1
             local b = (li - 1) % #L + 1
             label = L:sub(a, a) .. L:sub(b, b)
@@ -142,19 +142,33 @@ function M.start()
             label = L:sub(li, li)
           end
         end
-        local prev = line_end[m.line]
-        if label and (not prev or m.start_col >= prev) then
-          if two then
-            prefixes[label:sub(1, 1)] = true
+        if label then
+          local gap = two and 1 or 0
+          local ivs = line_intervals[m.line] or {}
+          local fits = true
+          for _, iv in ipairs(ivs) do
+            if
+              m.start_col < iv[2] + gap
+              and iv[1] < m.start_col + #label + gap
+            then
+              fits = false
+              break
+            end
           end
-          active[label] = { m.line + 1, m.start_col }
-          api.nvim_buf_set_extmark(buf, NS, m.line, m.start_col, {
-            virt_text = { { label, M.config.label } },
-            virt_text_pos = 'overlay',
-            priority = 201,
-          })
-          line_end[m.line] = m.start_col + #label + (two and 1 or 0)
-          li = li + 1
+          if fits then
+            if two then
+              prefixes[label:sub(1, 1)] = true
+            end
+            active[label] = { m.line + 1, m.start_col }
+            api.nvim_buf_set_extmark(buf, NS, m.line, m.start_col, {
+              virt_text = { { label, M.config.label } },
+              virt_text_pos = 'overlay',
+              priority = 201,
+            })
+            ivs[#ivs + 1] = { m.start_col, m.start_col + #label }
+            line_intervals[m.line] = ivs
+            li = li + 1
+          end
         end
       end
     end
