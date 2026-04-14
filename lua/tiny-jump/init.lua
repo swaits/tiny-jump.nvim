@@ -1,3 +1,11 @@
+-- tiny-jump.nvim — a fork of https://github.com/yorickpeterse/nvim-jump
+-- Original work: Copyright (c) Yorick Peterse
+-- Modifications: Copyright (c) 2026 Stephen Waits
+--
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 local api = vim.api
 local fn = vim.fn
 local M = {}
