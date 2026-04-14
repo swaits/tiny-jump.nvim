@@ -1,14 +1,8 @@
-local fn = vim.fn
 local api = vim.api
-
+local fn = vim.fn
 local M = {}
-local NS = api.nvim_create_namespace('tiny-jump')
-local CR = api.nvim_replace_termcodes('<Cr>', true, true, true)
-local BS = api.nvim_replace_termcodes('<Bs>', true, true, true)
-local CTRL_H = api.nvim_replace_termcodes('<C-h>', true, true, true)
-local ESC = api.nvim_replace_termcodes('<Esc>', true, true, true)
-local LABELS = {}
-local CONFIG = {
+
+M.config = {
   -- The labels that may be used, in order of their preference.
   labels = 'fdsaghjklrewqtyuiopvcxzbnm',
 
@@ -20,52 +14,41 @@ local CONFIG = {
   label = 'IncSearch',
 }
 
-local function search(pattern, lines, start_line, matches)
+local K = {
+  CR = vim.keycode('<cr>'),
+  BS = vim.keycode('<bs>'),
+  C_H = vim.keycode('<c-h>'),
+  ESC = vim.keycode('<esc>'),
+}
+local NS = api.nvim_create_namespace('tiny-jump')
+
+-- Find all matches of `pattern` in `lines` and compute the set of labels that
+-- do not conflict with the character immediately following any match (so that
+-- typing the next input character cannot be mistaken for a label).
+local function scan(pattern, lines, start_line)
   local lower = pattern == pattern:lower()
-
+  local matches, avail = {}, {}
+  for i = 1, #M.config.labels do
+    avail[M.config.labels:sub(i, i)] = true
+  end
   for idx, line in ipairs(lines) do
-    local lnum = start_line + idx - 1
-    local line = lower and line:lower() or line
-
-    if #line > 0 then
-      local col = 1
-
-      while true do
-        local start, stop = line:find(pattern, col, true)
-
-        if not start then
-          break
-        end
-
-        col = stop + 1
-        table.insert(matches, {
-          line = lnum - 1,
-          start_col = start - 1,
-          end_col = stop,
-          line_index = idx,
-        })
+    local search_line = lower and line:lower() or line
+    local col = 1
+    while true do
+      local s, e = search_line:find(pattern, col, true)
+      if not s then
+        break
       end
+      col = e + 1
+      matches[#matches + 1] = {
+        line = start_line + idx - 2,
+        start_col = s - 1,
+        end_col = e,
+      }
+      avail[line:sub(e + 1, e + 1):lower()] = false
     end
   end
-end
-
-local function available_labels(lines, matches)
-  local avail = {}
-
-  for _, char in ipairs(LABELS) do
-    avail[char] = true
-  end
-
-  -- Disable all the labels that conflict with any of the characters that may be
-  -- matched by the next input.
-  for _, match in ipairs(matches) do
-    local next_col = match.end_col + 1
-    local next_char = lines[match.line_index]:sub(next_col, next_col):lower()
-
-    avail[next_char] = false
-  end
-
-  return avail
+  return matches, avail
 end
 
 function M.start()
@@ -73,76 +56,63 @@ function M.start()
   local buf = api.nvim_win_get_buf(win)
   local info = fn.getwininfo(win)[1]
   local top = info.topline
-  local bot = info.botline
-  local lines = api.nvim_buf_get_lines(buf, top - 1, bot, true)
-  local chars = ''
-  local matches = {}
-  local active = {}
+  local lines = api.nvim_buf_get_lines(buf, top - 1, info.botline, true)
+  local chars, active = '', {}
 
   while true do
     api.nvim_echo({ { '/' .. chars, '' } }, false, {})
+    local ch = fn.getcharstr(-1)
+    local jump_to = active[ch]
 
-    local char = fn.getcharstr(-1)
-    local jump_to = active[char]
-
-    if char == ESC then
+    if ch == K.ESC then
       break
-    elseif char == CR then
-      for _, char in ipairs(LABELS) do
-        jump_to = active[char]
-
-        if jump_to then
+    elseif ch == K.CR then
+      for i = 1, #M.config.labels do
+        local c = M.config.labels:sub(i, i)
+        if active[c] then
+          jump_to = active[c]
           break
         end
       end
-
       if jump_to then
         api.nvim_win_set_cursor(win, jump_to)
       end
-
       break
-    elseif char == BS or char == CTRL_H then
-      chars = chars:sub(1, #chars - 1)
+    elseif ch == K.BS or ch == K.C_H then
+      chars = chars:sub(1, -2)
     elseif jump_to then
       api.nvim_win_set_cursor(win, jump_to)
       break
     else
-      chars = chars .. char
+      chars = chars .. ch
     end
 
-    matches = {}
     active = {}
     api.nvim_buf_clear_namespace(buf, NS, 0, -1)
 
     if #chars > 0 then
-      search(chars, lines, top, matches)
-
-      local avail = available_labels(lines, matches)
-
-      for _, match in ipairs(matches) do
-        local label = nil
-
-        for _, cur in ipairs(LABELS) do
-          if avail[cur] then
-            label = cur
-            avail[cur] = false
-            break
-          end
-        end
-
+      local matches, avail = scan(chars, lines, top)
+      local li = 1
+      for _, m in ipairs(matches) do
         vim.hl.range(
           buf,
           NS,
-          CONFIG.search,
-          { match.line, match.start_col },
-          { match.line, match.end_col },
+          M.config.search,
+          { m.line, m.start_col },
+          { m.line, m.end_col },
           { priority = 200 }
         )
-
-        if label then
-          active[label] = { match.line + 1, match.start_col }
-          api.nvim_buf_set_extmark(buf, NS, match.line, match.start_col, {
-            virt_text = { { label, CONFIG.label } },
+        while
+          li <= #M.config.labels and not avail[M.config.labels:sub(li, li)]
+        do
+          li = li + 1
+        end
+        if li <= #M.config.labels then
+          local label = M.config.labels:sub(li, li)
+          li = li + 1
+          active[label] = { m.line + 1, m.start_col }
+          api.nvim_buf_set_extmark(buf, NS, m.line, m.start_col, {
+            virt_text = { { label, M.config.label } },
             virt_text_pos = 'overlay',
             priority = 201,
           })
@@ -159,28 +129,20 @@ function M.start()
 end
 
 function M.setup(opts)
-  if opts then
-    CONFIG = vim.tbl_extend('force', CONFIG, opts)
-  end
-
-  LABELS = fn.split(CONFIG.labels, '\\zs')
-
-  if type(CONFIG.label) == 'table' then
-    local attrs = CONFIG.label
-    CONFIG.label = 'TinyJumpLabel'
+  M.config = vim.tbl_extend('force', M.config, opts or {})
+  local group =
+    api.nvim_create_augroup('tiny-jump.highlights', { clear = true })
+  if type(M.config.label) == 'table' then
+    local attrs = M.config.label
+    M.config.label = 'TinyJumpLabel'
     -- Apply now (setup may run after the colorscheme is already loaded) and
     -- on every ColorScheme event (themes clear user-defined highlights).
     local function apply()
       api.nvim_set_hl(0, 'TinyJumpLabel', attrs)
     end
     apply()
-    api.nvim_create_autocmd('ColorScheme', {
-      group = api.nvim_create_augroup('tiny-jump.highlights', { clear = true }),
-      callback = apply,
-    })
+    api.nvim_create_autocmd('ColorScheme', { group = group, callback = apply })
   end
 end
-
-M.setup()
 
 return M
