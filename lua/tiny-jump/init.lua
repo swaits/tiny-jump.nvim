@@ -11,8 +11,10 @@ local fn = vim.fn
 local M = {}
 
 M.config = {
-  -- The labels that may be used, in order of their preference.
-  labels = 'fdsaghjklrewqtyuiopvcxzbnm',
+  -- The labels that may be used, in order of their preference. Ordered by
+  -- QWERTY finger strength (index > middle > ring > pinky, home > top >
+  -- bottom) with hand alternation to break ties.
+  labels = 'fjdkslahgeiruowmcnvptyqxzb',
 
   -- The highlight group to use for match highlights.
   search = 'Search',
