@@ -15,7 +15,7 @@ to the original author for a clean, focused implementation.
 I forked it because I wanted to pass label highlight attributes directly to
 `setup()` (instead of having to define a separate highlight group and re-apply
 it on every colorscheme change). I submitted that as a
-(PR)[https://github.com/yorickpeterse/nvim-jump/pull/8] but it was declined,
+[PR](https://github.com/yorickpeterse/nvim-jump/pull/8) but it was declined,
 which is the maintainer's right — the upstream plugin is explicitly considered
 feature-complete.
 
@@ -42,6 +42,13 @@ Despite fixing a double-`setup()` bug, adding inline label-color configuration,
 cursor-proximity sorting, and two-char labels for overflow matches, this fork is
 slightly _smaller_ than upstream — and an order of magnitude smaller than every
 other alternative on this list.
+
+### A note on style
+
+The code is intentionally dense. Comments are thorough by design — they do the
+explanatory work that would otherwise be done by helper functions and verbose
+names. If you're reading or editing `lua/tiny-jump/init.lua`, read the comments
+first. Don't "clean them up" — they're the docs.
 
 ## Requirements
 

@@ -5,6 +5,11 @@
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+--
+-- Style note: this file is intentionally dense (126 SLOC in one file).
+-- Comments are thorough by design — they do the explanatory work normally
+-- done by helper functions and verbose names. If you're editing here, read
+-- the comments first.
 
 local api, fn, M = vim.api, vim.fn, {}
 
