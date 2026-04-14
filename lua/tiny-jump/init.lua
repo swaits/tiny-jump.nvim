@@ -67,11 +67,14 @@ function M.start()
   local info = fn.getwininfo(win)[1]
   local top = info.topline
   local lines = api.nvim_buf_get_lines(buf, top - 1, info.botline, true)
-  local chars, active = '', {}
+  local chars, active, prefixes = '', {}, {}
 
   while true do
     api.nvim_echo({ { '/' .. chars, '' } }, false, {})
     local ch = fn.getcharstr(-1)
+    if prefixes[ch] then
+      ch = ch .. fn.getcharstr(-1)
+    end
     local jump_to = active[ch]
 
     if ch == K.ESC then
@@ -97,7 +100,7 @@ function M.start()
       chars = chars .. ch
     end
 
-    active = {}
+    active, prefixes = {}, {}
     api.nvim_buf_clear_namespace(buf, NS, 0, -1)
 
     if #chars > 0 then
@@ -111,6 +114,9 @@ function M.start()
         end
         return math.abs(a.start_col - cc) < math.abs(b.start_col - cc)
       end)
+      local L = M.config.labels
+      local two = #matches > #L
+      local line_end = {}
       local li = 1
       for _, m in ipairs(matches) do
         vim.hl.range(
@@ -121,20 +127,34 @@ function M.start()
           { m.line, m.end_col },
           { priority = 200 }
         )
-        while
-          li <= #M.config.labels and not avail[M.config.labels:sub(li, li)]
-        do
-          li = li + 1
+        local label
+        if two then
+          if li <= 2 * #L then
+            local a = math.floor((li - 1) / #L) + 1
+            local b = (li - 1) % #L + 1
+            label = L:sub(a, a) .. L:sub(b, b)
+          end
+        else
+          while li <= #L and not avail[L:sub(li, li)] do
+            li = li + 1
+          end
+          if li <= #L then
+            label = L:sub(li, li)
+          end
         end
-        if li <= #M.config.labels then
-          local label = M.config.labels:sub(li, li)
-          li = li + 1
+        local prev = line_end[m.line]
+        if label and (not prev or m.start_col >= prev) then
+          if two then
+            prefixes[label:sub(1, 1)] = true
+          end
           active[label] = { m.line + 1, m.start_col }
           api.nvim_buf_set_extmark(buf, NS, m.line, m.start_col, {
             virt_text = { { label, M.config.label } },
             virt_text_pos = 'overlay',
             priority = 201,
           })
+          line_end[m.line] = m.start_col + #label + (two and 1 or 0)
+          li = li + 1
         end
       end
     end
