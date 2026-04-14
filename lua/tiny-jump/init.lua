@@ -102,6 +102,15 @@ function M.start()
 
     if #chars > 0 then
       local matches, avail = scan(chars, lines, top)
+      local cr = api.nvim_win_get_cursor(win)
+      local cl, cc = cr[1] - 1, cr[2]
+      table.sort(matches, function(a, b)
+        local da, db = math.abs(a.line - cl), math.abs(b.line - cl)
+        if da ~= db then
+          return da < db
+        end
+        return math.abs(a.start_col - cc) < math.abs(b.start_col - cc)
+      end)
       local li = 1
       for _, m in ipairs(matches) do
         vim.hl.range(
